@@ -1,7 +1,8 @@
-import React, { useRef, useEffect, useCallback } from 'react';
+import React, { useRef, useEffect, useCallback, useState } from 'react';
 import { useEditorStore } from '../../store';
-import { Play, Pause, SkipBack, SkipForward, Maximize } from 'lucide-react';
+import { Play, Pause, SkipBack, SkipForward, Maximize, Volume2, VolumeX } from 'lucide-react';
 import { formatTime } from '../../utils';
+import { Tooltip } from '../editor/Tooltip';
 
 export const PreviewPanel: React.FC = () => {
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -16,6 +17,10 @@ export const PreviewPanel: React.FC = () => {
     setPlayheadPosition,
     selectedClipId 
   } = useEditorStore();
+
+  const [volume, setVolume] = useState(1);
+  const [isMuted, setIsMuted] = useState(false);
+  const [playbackSpeed, setPlaybackSpeed] = useState(1);
 
   // Get current clip being previewed
   const currentClip = selectedClipId 
@@ -32,12 +37,15 @@ export const PreviewPanel: React.FC = () => {
     const video = videoRef.current;
     if (!video) return;
 
+    video.playbackRate = playbackSpeed;
+    video.volume = isMuted ? 0 : volume;
+
     if (isPlaying) {
       video.play().catch(console.error);
     } else {
       video.pause();
     }
-  }, [isPlaying]);
+  }, [isPlaying, volume, isMuted, playbackSpeed]);
 
   // Update video time when playhead changes (when not playing)
   useEffect(() => {
@@ -129,12 +137,22 @@ export const PreviewPanel: React.FC = () => {
 
   const timelineDuration = getTimelineDuration();
 
+  // Toggle fullscreen
+  const toggleFullscreen = useCallback(() => {
+    if (!containerRef.current) return;
+    if (document.fullscreenElement) {
+      document.exitFullscreen();
+    } else {
+      containerRef.current.requestFullscreen();
+    }
+  }, []);
+
   return (
-    <div className="h-full bg-gray-800 flex flex-col">
+    <div className="h-full bg-[#1a1a1a] flex flex-col">
       {/* Video Canvas Area */}
       <div 
         ref={containerRef}
-        className="flex-1 flex items-center justify-center bg-gray-900 relative"
+        className="flex-1 flex items-center justify-center bg-[#0a0a0a] relative"
       >
         <div 
           className="relative bg-black"
@@ -153,7 +171,7 @@ export const PreviewPanel: React.FC = () => {
               className="hidden"
               onTimeUpdate={handleTimeUpdate}
               onEnded={() => setIsPlaying(false)}
-              muted={false}
+              muted={isMuted}
             />
           )}
           
@@ -169,7 +187,7 @@ export const PreviewPanel: React.FC = () => {
           {!currentAsset && (
             <div className="absolute inset-0 flex items-center justify-center text-gray-600">
               <div className="text-center">
-                <p className="text-lg font-medium">No clip selected</p>
+                <p className="text-base font-medium">No clip selected</p>
                 <p className="text-sm mt-1">Select a clip from the timeline to preview</p>
               </div>
             </div>
@@ -177,47 +195,50 @@ export const PreviewPanel: React.FC = () => {
           
           {/* Resolution indicator */}
           <div className="absolute top-2 left-2 px-2 py-1 bg-black/70 text-white text-xs rounded">
-            {project?.settings.width || 1920} x {project?.settings.height || 1080}
+            {project?.settings.width || 1920} x {project?.settings.height || 1080} @ {project?.settings.fps || 30}fps
           </div>
         </div>
       </div>
 
       {/* Playback Controls */}
-      <div className="h-16 bg-gray-900 border-t border-gray-700 flex items-center px-4 gap-4">
+      <div className="h-14 bg-[#141414] border-t border-[#2a2a2a] flex items-center px-3 gap-3 shrink-0">
         {/* Time display */}
-        <div className="text-white font-mono text-sm min-w-[100px]">
-          {formatTime(playheadPosition)} / {formatTime(timelineDuration)}
+        <div className="text-white font-mono text-xs min-w-[90px] font-medium">
+          <span className="text-red-500">{formatTime(playheadPosition)}</span>
+          <span className="text-gray-600 mx-1">/</span>
+          <span className="text-gray-500">{formatTime(timelineDuration)}</span>
         </div>
 
         {/* Playback buttons */}
-        <div className="flex items-center gap-2">
-          <button
-            onClick={skipToStart}
-            className="p-2 text-gray-400 hover:text-white hover:bg-gray-800 rounded transition-colors"
-            title="Go to start"
-          >
-            <SkipBack className="w-5 h-5" />
-          </button>
+        <div className="flex items-center gap-1">
+          <Tooltip content="Go to start">
+            <button
+              onClick={skipToStart}
+              className="p-1.5 text-gray-500 hover:text-white hover:bg-[#2a2a2a] rounded transition-colors"
+            >
+              <SkipBack className="w-4 h-4" />
+            </button>
+          </Tooltip>
           
           <button
             onClick={togglePlayPause}
-            className="p-3 bg-red-600 hover:bg-red-700 text-white rounded-full transition-colors"
-            title={isPlaying ? 'Pause' : 'Play'}
+            className={`px-4 py-1.5 rounded text-xs font-semibold transition-colors ${
+              isPlaying 
+                ? 'bg-red-600 text-white' 
+                : 'bg-[#2a2a2a] text-gray-300 hover:bg-[#3a3a3a]'
+            }`}
           >
-            {isPlaying ? (
-              <Pause className="w-5 h-5" />
-            ) : (
-              <Play className="w-5 h-5 ml-0.5" />
-            )}
+            {isPlaying ? 'Pause' : 'Play'}
           </button>
           
-          <button
-            onClick={() => setPlayheadPosition(Math.min(playheadPosition + 1, timelineDuration))}
-            className="p-2 text-gray-400 hover:text-white hover:bg-gray-800 rounded transition-colors"
-            title="Forward 1 second"
-          >
-            <SkipForward className="w-5 h-5" />
-          </button>
+          <Tooltip content="Forward 1 second">
+            <button
+              onClick={() => setPlayheadPosition(Math.min(playheadPosition + 1, timelineDuration))}
+              className="p-1.5 text-gray-500 hover:text-white hover:bg-[#2a2a2a] rounded transition-colors"
+            >
+              <SkipForward className="w-4 h-4" />
+            </button>
+          </Tooltip>
         </div>
 
         {/* Timeline scrubber */}
@@ -232,17 +253,57 @@ export const PreviewPanel: React.FC = () => {
               setPlayheadPosition(parseFloat(e.target.value));
               setIsPlaying(false);
             }}
-            className="flex-1 h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-red-600"
+            className="flex-1 h-1.5 bg-[#2a2a2a] rounded-lg appearance-none cursor-pointer accent-red-600"
           />
         </div>
 
-        {/* Fullscreen button */}
-        <button
-          className="p-2 text-gray-400 hover:text-white hover:bg-gray-800 rounded transition-colors"
-          title="Fullscreen"
+        {/* Volume control */}
+        <div className="flex items-center gap-1">
+          <Tooltip content={isMuted ? 'Unmute' : 'Mute'}>
+            <button
+              onClick={() => setIsMuted(!isMuted)}
+              className="p-1.5 text-gray-500 hover:text-white hover:bg-[#2a2a2a] rounded transition-colors"
+            >
+              {isMuted ? (
+                <VolumeX className="w-4 h-4" />
+              ) : (
+                <Volume2 className="w-4 h-4" />
+              )}
+            </button>
+          </Tooltip>
+          <input
+            type="range"
+            min={0}
+            max={1}
+            step={0.01}
+            value={volume}
+            onChange={(e) => setVolume(parseFloat(e.target.value))}
+            className="w-16 h-1 bg-[#2a2a2a] rounded-lg appearance-none cursor-pointer accent-red-600"
+          />
+        </div>
+
+        {/* Speed selector */}
+        <select
+          value={playbackSpeed}
+          onChange={(e) => setPlaybackSpeed(parseFloat(e.target.value))}
+          className="bg-[#1a1a1a] border border-[#2a2a2a] text-gray-400 text-xs rounded px-2 py-1 focus:outline-none focus:border-red-600"
         >
-          <Maximize className="w-5 h-5" />
-        </button>
+          <option value="0.25">0.25x</option>
+          <option value="0.5">0.5x</option>
+          <option value="1">1x</option>
+          <option value="1.5">1.5x</option>
+          <option value="2">2x</option>
+        </select>
+
+        {/* Fullscreen button */}
+        <Tooltip content="Fullscreen">
+          <button
+            onClick={toggleFullscreen}
+            className="p-1.5 text-gray-500 hover:text-white hover:bg-[#2a2a2a] rounded transition-colors"
+          >
+            <Maximize className="w-4 h-4" />
+          </button>
+        </Tooltip>
       </div>
     </div>
   );
