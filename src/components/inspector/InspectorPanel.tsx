@@ -1,6 +1,38 @@
 import React from 'react';
 import { useEditorStore } from '../../store';
 import type { Clip, Effect, TextStyle } from '../../types';
+import { ChevronDown, ChevronRight } from 'lucide-react';
+
+interface SectionProps {
+  title: string;
+  children: React.ReactNode;
+  defaultOpen?: boolean;
+}
+
+const CollapsibleSection: React.FC<SectionProps> = ({ title, children, defaultOpen = true }) => {
+  const [isOpen, setIsOpen] = React.useState(defaultOpen);
+  
+  return (
+    <div className="border-b border-[#2a2a2a]">
+      <button
+        onClick={() => setIsOpen(!isOpen)}
+        className="w-full px-3 py-2 flex items-center gap-2 text-gray-400 hover:text-white hover:bg-[#1a1a1a] transition-colors"
+      >
+        {isOpen ? (
+          <ChevronDown className="w-3.5 h-3.5" />
+        ) : (
+          <ChevronRight className="w-3.5 h-3.5" />
+        )}
+        <h3 className="text-xs font-medium uppercase tracking-wide">{title}</h3>
+      </button>
+      {isOpen && (
+        <div className="px-3 pb-3">
+          {children}
+        </div>
+      )}
+    </div>
+  );
+};
 
 export const InspectorPanel: React.FC = () => {
   const { project, selectedClipId, updateClip } = useEditorStore();
@@ -16,19 +48,50 @@ export const InspectorPanel: React.FC = () => {
 
   if (!selectedClip) {
     return (
-      <div className="h-full bg-gray-900 border-l border-gray-700 w-72 shrink-0 flex items-center justify-center p-4">
-        <div className="text-center text-gray-500">
-          <p className="text-sm">No clip selected</p>
-          <p className="text-xs mt-1">Select a clip to edit its properties</p>
+      <div className="h-full bg-[#1a1a1a] border-l border-[#2a2a2a] w-72 shrink-0 flex flex-col">
+        {/* Header */}
+        <div className="p-3 border-b border-[#2a2a2a]">
+          <h2 className="text-white font-semibold text-sm">Properties</h2>
         </div>
+        
+        {/* Empty state */}
+        <div className="flex-1 flex items-center justify-center p-4">
+          <div className="text-center text-gray-500">
+            <div className="w-12 h-12 mx-auto mb-3 bg-[#141414] rounded-lg flex items-center justify-center">
+              <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+              </svg>
+            </div>
+            <p className="text-sm font-medium text-gray-400">No clip selected</p>
+            <p className="text-xs mt-1">Select a clip to edit its properties</p>
+          </div>
+        </div>
+        
+        {/* Project settings when nothing selected */}
+        {project && (
+          <div className="p-3 border-t border-[#2a2a2a] bg-[#141414]">
+            <h3 className="text-gray-400 text-xs font-medium uppercase mb-3">Project Settings</h3>
+            <div className="space-y-2">
+              <div className="flex justify-between text-xs">
+                <span className="text-gray-500">Resolution</span>
+                <span className="text-gray-300">{project.settings.width}x{project.settings.height}</span>
+              </div>
+              <div className="flex justify-between text-xs">
+                <span className="text-gray-500">Frame Rate</span>
+                <span className="text-gray-300">{project.settings.fps} fps</span>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     );
   }
 
   return (
-    <div className="h-full bg-gray-900 border-l border-gray-700 w-72 shrink-0 overflow-y-auto">
+    <div className="h-full bg-[#1a1a1a] border-l border-[#2a2a2a] w-72 shrink-0 overflow-y-auto">
       {/* Header */}
-      <div className="p-3 border-b border-gray-700">
+      <div className="p-3 border-b border-[#2a2a2a]">
         <h2 className="text-white font-semibold text-sm truncate" title={selectedAsset?.name}>
           {selectedAsset?.name || 'Clip'}
         </h2>
@@ -36,9 +99,7 @@ export const InspectorPanel: React.FC = () => {
       </div>
 
       {/* Transform Section */}
-      <div className="p-3 border-b border-gray-700">
-        <h3 className="text-gray-400 text-xs font-medium uppercase mb-3">Transform</h3>
-        
+      <CollapsibleSection title="Transform">
         <div className="space-y-3">
           <div className="grid grid-cols-2 gap-2">
             <div>
@@ -49,7 +110,7 @@ export const InspectorPanel: React.FC = () => {
                 onChange={(e) => updateClip(selectedClip.id, {
                   transform: { ...selectedClip.transform, x: Number(e.target.value) }
                 })}
-                className="w-full bg-gray-800 border border-gray-700 rounded px-2 py-1 text-white text-sm focus:outline-none focus:border-red-600"
+                className="w-full bg-[#141414] border border-[#2a2a2a] rounded px-2 py-1.5 text-white text-xs focus:outline-none focus:border-red-600 transition-colors"
               />
             </div>
             <div>
@@ -60,13 +121,16 @@ export const InspectorPanel: React.FC = () => {
                 onChange={(e) => updateClip(selectedClip.id, {
                   transform: { ...selectedClip.transform, y: Number(e.target.value) }
                 })}
-                className="w-full bg-gray-800 border border-gray-700 rounded px-2 py-1 text-white text-sm focus:outline-none focus:border-red-600"
+                className="w-full bg-[#141414] border border-[#2a2a2a] rounded px-2 py-1.5 text-white text-xs focus:outline-none focus:border-red-600 transition-colors"
               />
             </div>
           </div>
 
           <div>
-            <label className="text-gray-500 text-xs block mb-1">Scale</label>
+            <div className="flex items-center justify-between mb-1">
+              <label className="text-gray-500 text-xs">Scale</label>
+              <span className="text-gray-400 text-xs">{Math.round(selectedClip.transform.scale * 100)}%</span>
+            </div>
             <input
               type="range"
               min="0.1"
@@ -78,11 +142,13 @@ export const InspectorPanel: React.FC = () => {
               })}
               className="w-full accent-red-600"
             />
-            <span className="text-gray-400 text-xs">{Math.round(selectedClip.transform.scale * 100)}%</span>
           </div>
 
           <div>
-            <label className="text-gray-500 text-xs block mb-1">Rotation</label>
+            <div className="flex items-center justify-between mb-1">
+              <label className="text-gray-500 text-xs">Rotation</label>
+              <span className="text-gray-400 text-xs">{Math.round(selectedClip.transform.rotation)}°</span>
+            </div>
             <input
               type="range"
               min="0"
@@ -93,11 +159,13 @@ export const InspectorPanel: React.FC = () => {
               })}
               className="w-full accent-red-600"
             />
-            <span className="text-gray-400 text-xs">{Math.round(selectedClip.transform.rotation)}°</span>
           </div>
 
           <div>
-            <label className="text-gray-500 text-xs block mb-1">Opacity</label>
+            <div className="flex items-center justify-between mb-1">
+              <label className="text-gray-500 text-xs">Opacity</label>
+              <span className="text-gray-400 text-xs">{Math.round(selectedClip.transform.opacity * 100)}%</span>
+            </div>
             <input
               type="range"
               min="0"
@@ -109,19 +177,19 @@ export const InspectorPanel: React.FC = () => {
               })}
               className="w-full accent-red-600"
             />
-            <span className="text-gray-400 text-xs">{Math.round(selectedClip.transform.opacity * 100)}%</span>
           </div>
         </div>
-      </div>
+      </CollapsibleSection>
 
       {/* Audio Section (for video/audio clips) */}
       {(selectedAsset?.type === 'video' || selectedAsset?.type === 'audio') && selectedClip.audio && (
-        <div className="p-3 border-b border-gray-700">
-          <h3 className="text-gray-400 text-xs font-medium uppercase mb-3">Audio</h3>
-          
+        <CollapsibleSection title="Audio">
           <div className="space-y-3">
             <div>
-              <label className="text-gray-500 text-xs block mb-1">Volume</label>
+              <div className="flex items-center justify-between mb-1">
+                <label className="text-gray-500 text-xs">Volume</label>
+                <span className="text-gray-400 text-xs">{Math.round(selectedClip.audio.volume * 100)}%</span>
+              </div>
               <input
                 type="range"
                 min="0"
@@ -133,7 +201,6 @@ export const InspectorPanel: React.FC = () => {
                 })}
                 className="w-full accent-red-600"
               />
-              <span className="text-gray-400 text-xs">{Math.round(selectedClip.audio.volume * 100)}%</span>
             </div>
 
             <div className="flex items-center justify-between">
@@ -142,10 +209,10 @@ export const InspectorPanel: React.FC = () => {
                 onClick={() => updateClip(selectedClip.id, {
                   audio: { ...selectedClip.audio!, muted: !selectedClip.audio!.muted }
                 })}
-                className={`px-3 py-1 rounded text-xs font-medium transition-colors ${
+                className={`px-2.5 py-1 rounded text-xs font-medium transition-colors ${
                   selectedClip.audio.muted
                     ? 'bg-red-600 text-white'
-                    : 'bg-gray-700 text-gray-300'
+                    : 'bg-[#2a2a2a] text-gray-400 hover:text-white'
                 }`}
               >
                 {selectedClip.audio.muted ? 'On' : 'Off'}
@@ -163,7 +230,7 @@ export const InspectorPanel: React.FC = () => {
                 onChange={(e) => updateClip(selectedClip.id, {
                   audio: { ...selectedClip.audio!, fadeIn: Number(e.target.value) }
                 })}
-                className="w-full bg-gray-800 border border-gray-700 rounded px-2 py-1 text-white text-sm focus:outline-none focus:border-red-600"
+                className="w-full bg-[#141414] border border-[#2a2a2a] rounded px-2 py-1.5 text-white text-xs focus:outline-none focus:border-red-600 transition-colors"
               />
             </div>
 
@@ -178,18 +245,16 @@ export const InspectorPanel: React.FC = () => {
                 onChange={(e) => updateClip(selectedClip.id, {
                   audio: { ...selectedClip.audio!, fadeOut: Number(e.target.value) }
                 })}
-                className="w-full bg-gray-800 border border-gray-700 rounded px-2 py-1 text-white text-sm focus:outline-none focus:border-red-600"
+                className="w-full bg-[#141414] border border-[#2a2a2a] rounded px-2 py-1.5 text-white text-xs focus:outline-none focus:border-red-600 transition-colors"
               />
             </div>
           </div>
-        </div>
+        </CollapsibleSection>
       )}
 
       {/* Effects Section */}
-      <div className="p-3">
-        <h3 className="text-gray-400 text-xs font-medium uppercase mb-3">Effects</h3>
-        
-        <div className="space-y-2">
+      <CollapsibleSection title="Effects" defaultOpen={false}>
+        <div className="space-y-3">
           {['brightness', 'contrast', 'saturation', 'blur', 'grayscale', 'sepia'].map((effectType) => {
             const effect = selectedClip.effects.find(e => e.type === effectType);
             const intensity = effect?.intensity || 0;
@@ -203,7 +268,7 @@ export const InspectorPanel: React.FC = () => {
                 <input
                   type="range"
                   min="0"
-                  max="2"
+                  max="1"
                   step="0.01"
                   value={intensity}
                   onChange={(e) => {
@@ -226,7 +291,7 @@ export const InspectorPanel: React.FC = () => {
             );
           })}
         </div>
-      </div>
+      </CollapsibleSection>
     </div>
   );
 };
