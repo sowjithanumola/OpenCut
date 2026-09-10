@@ -1,8 +1,10 @@
 import React, { useRef, useEffect, useCallback, useState } from 'react';
 import { useEditorStore } from '../../store';
+import { TimelineEngine } from '../../engine';
 import { Play, Pause, SkipBack, SkipForward, Maximize, Volume2, VolumeX } from 'lucide-react';
 import { formatTime } from '../../utils';
 import { Tooltip } from '../editor/Tooltip';
+import type { MediaAsset } from '../../types';
 
 export const PreviewPanel: React.FC = () => {
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -21,16 +23,35 @@ export const PreviewPanel: React.FC = () => {
   const [volume, setVolume] = useState(1);
   const [isMuted, setIsMuted] = useState(false);
   const [playbackSpeed, setPlaybackSpeed] = useState(1);
+  const [currentVideoAsset, setCurrentVideoAsset] = useState<MediaAsset | null>(null);
 
-  // Get current clip being previewed
-  const currentClip = selectedClipId 
+  // Get all clips at current playhead position
+  const getCurrentClips = useCallback(() => {
+    if (!project) return [];
+    return TimelineEngine.getClipsAtTime(project, playheadPosition);
+  }, [project, playheadPosition]);
+
+  // Get the topmost video clip at current time
+  const currentClip = getCurrentClips().filter(c => {
+    const track = project?.tracks.find(t => t.id === c.trackId);
+    return track?.type === 'video' || track?.type === 'text';
+  }).pop() || (selectedClipId 
     ? project?.tracks.flatMap(t => t.clips).find(c => c.id === selectedClipId)
-    : null;
+    : null);
 
   // Get media asset for current clip
   const currentAsset = currentClip 
     ? project?.mediaAssets.find(a => a.id === currentClip.assetId)
     : null;
+
+  // Update current video asset when clip changes
+  useEffect(() => {
+    if (currentAsset?.type === 'video') {
+      setCurrentVideoAsset(currentAsset);
+    } else {
+      setCurrentVideoAsset(null);
+    }
+  }, [currentAsset?.id, currentAsset?.type]);
 
   // Handle playback
   useEffect(() => {
@@ -40,23 +61,21 @@ export const PreviewPanel: React.FC = () => {
     video.playbackRate = playbackSpeed;
     video.volume = isMuted ? 0 : volume;
 
-    if (isPlaying) {
+    if (isPlaying && currentVideoAsset) {
       video.play().catch(console.error);
     } else {
       video.pause();
     }
-  }, [isPlaying, volume, isMuted, playbackSpeed]);
+  }, [isPlaying, volume, isMuted, playbackSpeed, currentVideoAsset]);
 
   // Update video time when playhead changes (when not playing)
   useEffect(() => {
     const video = videoRef.current;
-    if (!video || isPlaying) return;
+    if (!video || isPlaying || !currentClip) return;
 
-    if (currentClip) {
-      const sourceTime = currentClip.trimStart + (playheadPosition - currentClip.startTime);
-      if (sourceTime >= currentClip.trimStart && sourceTime <= currentClip.trimEnd) {
-        video.currentTime = sourceTime;
-      }
+    const sourceTime = currentClip.trimStart + (playheadPosition - currentClip.startTime);
+    if (sourceTime >= currentClip.trimStart && sourceTime <= currentClip.trimEnd) {
+      video.currentTime = sourceTime;
     }
   }, [playheadPosition, currentClip, isPlaying]);
 
@@ -75,10 +94,70 @@ export const PreviewPanel: React.FC = () => {
     }
   }, [currentClip, setPlayheadPosition, setIsPlaying]);
 
+  // Render frame to canvas
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    const video = videoRef.current;
+    if (!canvas || !video) return;
+
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    // Clear canvas
+    ctx.fillStyle = project?.settings.backgroundColor || '#000000';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    // Draw video if available
+    if (currentVideoAsset && video.readyState >= 2) {
+      const asset = currentVideoAsset;
+      const clip = currentClip;
+      
+      if (clip && asset) {
+        const scaleX = canvas.width / (asset.width || 1920);
+        const scaleY = canvas.height / (asset.height || 1080);
+        const scale = clip.transform.scale * Math.min(scaleX, scaleY);
+        
+        ctx.save();
+        
+        // Apply transform
+        ctx.translate(canvas.width / 2 + clip.transform.x, canvas.height / 2 + clip.transform.y);
+        ctx.rotate((clip.transform.rotation * Math.PI) / 180);
+        ctx.scale(scale, scale);
+        ctx.globalAlpha = clip.transform.opacity;
+        
+        // Draw video frame
+        ctx.drawImage(video, -(asset.width || 1920) / 2, -(asset.height || 1080) / 2);
+        
+        ctx.restore();
+      }
+    } else if (currentAsset?.type === 'image' && currentAsset.url) {
+      // Draw image
+      const img = new Image();
+      img.src = currentAsset.url;
+      if (img.complete) {
+        const clip = currentClip;
+        const scaleX = canvas.width / (currentAsset.width || 1920);
+        const scaleY = canvas.height / (currentAsset.height || 1080);
+        const scale = clip ? clip.transform.scale * Math.min(scaleX, scaleY) : 1;
+        
+        ctx.save();
+        if (clip) {
+          ctx.translate(canvas.width / 2 + clip.transform.x, canvas.height / 2 + clip.transform.y);
+          ctx.rotate((clip.transform.rotation * Math.PI) / 180);
+          ctx.scale(scale, scale);
+          ctx.globalAlpha = clip.transform.opacity;
+        }
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        ctx.restore();
+      }
+    }
+  }, [currentVideoAsset, currentAsset, currentClip, playheadPosition, project?.settings.backgroundColor]);
+
   // Toggle play/pause
   const togglePlayPause = useCallback(() => {
+    if (!currentClip) return;
     setIsPlaying(!isPlaying);
-  }, [isPlaying, setIsPlaying]);
+  }, [isPlaying, setIsPlaying, currentClip]);
 
   // Skip to start of clip or beginning
   const skipToStart = useCallback(() => {
@@ -148,10 +227,9 @@ export const PreviewPanel: React.FC = () => {
   }, []);
 
   return (
-    <div className="h-full bg-[#1a1a1a] flex flex-col">
+    <div className="h-full bg-[#1a1a1a] flex flex-col" ref={containerRef}>
       {/* Video Canvas Area */}
       <div 
-        ref={containerRef}
         className="flex-1 flex items-center justify-center bg-[#0a0a0a] relative"
       >
         <div 
@@ -164,10 +242,10 @@ export const PreviewPanel: React.FC = () => {
           }}
         >
           {/* Hidden video element for playback */}
-          {currentAsset?.type === 'video' && currentAsset.url && (
+          {currentVideoAsset?.url && (
             <video
               ref={videoRef}
-              src={currentAsset.url}
+              src={currentVideoAsset.url}
               className="hidden"
               onTimeUpdate={handleTimeUpdate}
               onEnded={() => setIsPlaying(false)}
@@ -184,7 +262,7 @@ export const PreviewPanel: React.FC = () => {
           />
           
           {/* Placeholder when no clip selected */}
-          {!currentAsset && (
+          {!currentAsset && getCurrentClips().length === 0 && (
             <div className="absolute inset-0 flex items-center justify-center text-gray-600">
               <div className="text-center">
                 <p className="text-base font-medium">No clip selected</p>
@@ -222,12 +300,12 @@ export const PreviewPanel: React.FC = () => {
           
           <button
             onClick={togglePlayPause}
-            className={`px-4 py-1.5 rounded text-xs font-semibold transition-colors ${
+            disabled={!currentClip}
+            className={`px-4 py-1.5 rounded text-xs font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
               isPlaying 
                 ? 'bg-red-600 text-white' 
                 : 'bg-[#2a2a2a] text-gray-300 hover:bg-[#3a3a3a]'
-            }`}
-          >
+            }`}>
             {isPlaying ? 'Pause' : 'Play'}
           </button>
           

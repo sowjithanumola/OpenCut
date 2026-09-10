@@ -1,6 +1,7 @@
 import React, { useRef, useCallback, useState } from 'react';
 import { useEditorStore } from '../../store';
 import { MediaProcessor } from '../../engine';
+import { TimelineEngine } from '../../engine';
 import { Plus, Image, Music, Video, Trash2, Upload, Film, Mic } from 'lucide-react';
 import type { MediaAsset } from '../../types';
 import { Tooltip } from '../editor/Tooltip';
@@ -8,7 +9,7 @@ import { Tooltip } from '../editor/Tooltip';
 export const MediaPanel: React.FC = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const dropZoneRef = useRef<HTMLDivElement>(null);
-  const { project, addMediaAsset, removeMediaAsset, addClip } = useEditorStore();
+  const { project, addMediaAsset, removeMediaAsset, addClip, setSelectedClip } = useEditorStore();
   const [isDragging, setIsDragging] = useState(false);
   const [activeTab, setActiveTab] = useState<'all' | 'video' | 'audio' | 'image'>('all');
 
@@ -48,6 +49,45 @@ export const MediaPanel: React.FC = () => {
     }));
     e.dataTransfer.effectAllowed = 'copy';
   }, []);
+
+  const handleClickToAddToTimeline = useCallback((asset: MediaAsset) => {
+    if (!project) return;
+    
+    // Find appropriate track based on asset type
+    let targetTrackId: string | undefined;
+    
+    if (asset.type === 'video') {
+      // Try video tracks first, then audio track for detached audio
+      const videoTrack = project.tracks.find(t => t.type === 'video' && !t.locked);
+      targetTrackId = videoTrack?.id;
+    } else if (asset.type === 'audio') {
+      const audioTrack = project.tracks.find(t => t.type === 'audio' && !t.locked);
+      targetTrackId = audioTrack?.id;
+    } else if (asset.type === 'image') {
+      const videoTrack = project.tracks.find(t => t.type === 'video' && !t.locked);
+      targetTrackId = videoTrack?.id;
+    }
+    
+    if (!targetTrackId) {
+      // Create a new track if needed
+      const trackId = `${asset.type}-${Date.now()}`;
+      targetTrackId = trackId;
+    }
+    
+    // Create clip at the end of existing content or at playhead
+    const track = project.tracks.find(t => t.id === targetTrackId);
+    let startTime = 0;
+    if (track) {
+      const maxEndTime = Math.max(0, ...track.clips.map(c => c.endTime));
+      startTime = maxEndTime; // Start after last clip
+    }
+    
+    const clip = TimelineEngine.createClip(asset, targetTrackId, startTime);
+    if (clip) {
+      addClip(clip);
+      setSelectedClip(clip.id);
+    }
+  }, [project, addClip, setSelectedClip]);
 
   const getMediaTypeIcon = (type: MediaAsset['type']) => {
     switch (type) {
@@ -154,7 +194,8 @@ export const MediaPanel: React.FC = () => {
                 key={asset.id}
                 draggable
                 onDragStart={(e) => handleDragToTimeline(e, asset)}
-                className="group relative bg-[#141414] rounded-lg overflow-hidden border border-[#2a2a2a] hover:border-[#3a3a3a] transition-colors cursor-grab active:cursor-grabbing"
+                onClick={() => handleClickToAddToTimeline(asset)}
+                className="group relative bg-[#141414] rounded-lg overflow-hidden border border-[#2a2a2a] hover:border-[#3a3a3a] transition-colors cursor-pointer"
               >
                 {/* Thumbnail */}
                 <div className="aspect-video bg-[#0a0a0a] relative">
@@ -185,7 +226,7 @@ export const MediaPanel: React.FC = () => {
                   
                   {/* Overlay on hover */}
                   <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center pointer-events-none">
-                    <p className="text-white text-xs font-medium">Drag to timeline</p>
+                    <p className="text-white text-xs font-medium">Click or drag to timeline</p>
                   </div>
                 </div>
 
