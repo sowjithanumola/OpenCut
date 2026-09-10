@@ -1,8 +1,3 @@
-
-# Project Title
-
-A brief description of what this project does and who it's for
-
 # OpenCut
 
 **OpenCut is a free, professional, browser-based video editor designed to make powerful video editing accessible to everyone.**
