@@ -1,13 +1,14 @@
-import React, { useRef, useCallback, useEffect } from 'react';
+import React, { useRef, useCallback, useEffect, useState } from 'react';
 import { useEditorStore } from '../../store';
 import { TimelineEngine } from '../../engine';
 import { Lock, Eye, Volume2, VolumeX, Plus, Minus, Scissors, Trash2 } from 'lucide-react';
-import type { Track, Clip } from '../../types';
+import type { Track, Clip, MediaAsset } from '../../types';
 import { formatTime } from '../../utils';
 
 export const TimelinePanel: React.FC = () => {
   const timelineRef = useRef<HTMLDivElement>(null);
   const rulerRef = useRef<HTMLDivElement>(null);
+  const [isDraggingOver, setIsDraggingOver] = useState(false);
   
   const { 
     project, 
@@ -33,6 +34,69 @@ export const TimelinePanel: React.FC = () => {
   // Get timeline duration
   const timelineDuration = project ? TimelineEngine.getTimelineDuration(project) : 60;
   const timelineWidth = timelineDuration * PIXELS_PER_SECOND;
+
+  // Handle drop from media library
+  const handleDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDraggingOver(false);
+    
+    if (!project) return;
+    
+    try {
+      const data = e.dataTransfer.getData('application/json');
+      if (!data) return;
+      
+      const parsed = JSON.parse(data);
+      if (parsed.type !== 'media-asset') return;
+      
+      const assetId = parsed.assetId;
+      const asset = project.mediaAssets.find(a => a.id === assetId);
+      if (!asset) return;
+      
+      // Calculate drop position
+      const rect = timelineRef.current?.getBoundingClientRect();
+      if (!rect) return;
+      
+      const x = e.clientX - rect.left;
+      let startTime = Math.max(0, x / PIXELS_PER_SECOND);
+      
+      // Find appropriate track based on asset type
+      let targetTrackId: string | undefined;
+      
+      if (asset.type === 'video') {
+        const videoTrack = project.tracks.find(t => t.type === 'video' && !t.locked);
+        targetTrackId = videoTrack?.id;
+      } else if (asset.type === 'audio') {
+        const audioTrack = project.tracks.find(t => t.type === 'audio' && !t.locked);
+        targetTrackId = audioTrack?.id;
+      } else if (asset.type === 'image') {
+        const videoTrack = project.tracks.find(t => t.type === 'video' && !t.locked);
+        targetTrackId = videoTrack?.id;
+      }
+      
+      if (!targetTrackId) return;
+      
+      // Create clip at drop position
+      const clip = TimelineEngine.createClip(asset, targetTrackId, startTime);
+      if (clip) {
+        addClip(clip);
+        setSelectedClip(clip.id);
+      }
+    } catch (error) {
+      console.error('Failed to handle drop:', error);
+    }
+  }, [project, PIXELS_PER_SECOND, addClip, setSelectedClip]);
+
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'copy';
+    setIsDraggingOver(true);
+  }, []);
+
+  const handleDragLeave = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDraggingOver(false);
+  }, []);
 
   // Handle timeline click to move playhead
   const handleTimelineClick = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
@@ -240,12 +304,17 @@ export const TimelinePanel: React.FC = () => {
         <div 
           className="flex-1 overflow-x-auto overflow-y-hidden"
           ref={timelineRef}
+          onDrop={handleDrop}
+          onDragOver={handleDragOver}
+          onDragLeave={handleDragLeave}
         >
           <div style={{ width: timelineWidth }} className="relative">
             {/* Ruler */}
             <div
               ref={rulerRef}
-              className="h-8 bg-gray-800 border-b border-gray-700 cursor-pointer relative"
+              className={`h-8 bg-gray-800 border-b border-gray-700 cursor-pointer relative ${
+                isDraggingOver ? 'bg-red-600/20' : ''
+              }`}
               onClick={handleTimelineClick}
             >
               {/* Time markers */}
