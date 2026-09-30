@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useEditorStore } from '../../store';
 import { X, Download, Film, Settings, CheckCircle } from 'lucide-react';
+import { renderTimeline } from '../../engine/export/renderTimeline';
 
 interface ExportSettings {
   resolution: '1080p' | '720p' | '480p';
@@ -41,34 +42,11 @@ export const ExportPanel: React.FC<{ onClose: () => void }> = ({ onClose }) => {
     setLocalProgress(0);
     
     try {
-      // Simulate export progress
-      const steps = [
-        { progress: 10, message: 'Preparing timeline...' },
-        { progress: 25, message: 'Processing video clips...' },
-        { progress: 50, message: 'Mixing audio tracks...' },
-        { progress: 75, message: 'Applying effects and transitions...' },
-        { progress: 90, message: 'Encoding final video...' },
-        { progress: 100, message: 'Export complete!' },
-      ];
-
-      for (const step of steps) {
-        await new Promise(resolve => setTimeout(resolve, 500));
-        setLocalProgress(step.progress);
-        setExportProgress(step.progress / 100);
-      }
-
-      // Create a simple downloadable file as a placeholder
-      // In a real implementation, this would use WebCodecs API or similar
-      const blob = new Blob([JSON.stringify({
-        projectName: project.name,
-        exportedAt: new Date().toISOString(),
-        settings,
-        duration: project.tracks.reduce((max, track) => {
-          const trackMax = Math.max(0, ...track.clips.map(c => c.endTime));
-          return Math.max(max, trackMax);
-        }, 0),
-      }, null, 2)], { type: 'application/json' });
-      
+      if (settings.format !== 'webm') throw new Error('MP4 export requires a codec not included in this browser build. Select WebM.');
+      const dimensions = getResolutionDimensions(settings.resolution);
+      const blob = await renderTimeline(project, { ...dimensions, fps: settings.fps, quality: settings.quality }, progress => {
+        setLocalProgress(Math.round(progress * 100)); setExportProgress(progress);
+      });
       const url = URL.createObjectURL(blob);
       setExportUrl(url);
       setExportComplete(true);
@@ -184,13 +162,14 @@ export const ExportPanel: React.FC<{ onClose: () => void }> = ({ onClose }) => {
                   </button>
                   <button
                     onClick={() => setSettings({ ...settings, format: 'mp4' })}
+                    disabled
                     className={`flex-1 px-3 py-2 rounded text-sm transition-colors ${
                       settings.format === 'mp4'
                         ? 'bg-red-600 text-white'
                         : 'bg-[#141414] text-gray-400 hover:bg-[#2a2a2a] hover:text-white'
                     }`}
                   >
-                    MP4 (Coming Soon)
+                    MP4 (not supported)
                   </button>
                 </div>
               </div>

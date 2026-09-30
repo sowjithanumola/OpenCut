@@ -39,6 +39,7 @@ interface EditorActions {
   
   // Timeline operations
   addTrack: (track: Track) => void;
+  updateTrack: (trackId: string, updates: Partial<Track>) => void;
   removeTrack: (trackId: string) => void;
   addClip: (clip: Clip) => void;
   updateClip: (clipId: string, updates: Partial<Clip>) => void;
@@ -151,6 +152,10 @@ export const useEditorStore = create<EditorState & EditorActions>((set, get) => 
       set({ project: { ...project, tracks: [...project.tracks, track], updatedAt: Date.now() } });
     }
   },
+  updateTrack: (trackId, updates) => {
+    const { project } = get();
+    if (project) set({ project: { ...project, tracks: project.tracks.map(track => track.id === trackId ? { ...track, ...updates } : track), updatedAt: Date.now() } });
+  },
   
   removeTrack: (trackId) => {
     const { project } = get();
@@ -222,6 +227,7 @@ export const useEditorStore = create<EditorState & EditorActions>((set, get) => 
           if (updatedClip) {
             clipsInThisTrack.push({
               ...updatedClip,
+              trackId: newTrackId || updatedClip.trackId,
               startTime: newStartTime,
               endTime: newStartTime + clipDuration,
             });
@@ -240,14 +246,17 @@ export const useEditorStore = create<EditorState & EditorActions>((set, get) => 
         ...track,
         clips: track.clips.map(clip => {
           if (clip.id === clipId) {
-            const duration = clip.endTime - clip.startTime;
-            const newDuration = trimEnd - trimStart;
-            const timeScale = newDuration > 0 ? duration / newDuration : 1;
+            const sourceDuration = clip.trimEnd - clip.trimStart;
+            const nextTrimStart = Math.max(0, trimStart);
+            const nextTrimEnd = Math.max(nextTrimStart + 0.01, trimEnd);
+            const newDuration = nextTrimEnd - nextTrimStart;
             return {
               ...clip,
-              trimStart,
-              trimEnd,
-              offset: clip.offset + trimStart,
+              startTime: clip.startTime + (nextTrimStart - clip.trimStart),
+              endTime: clip.endTime + (newDuration - sourceDuration),
+              trimStart: nextTrimStart,
+              trimEnd: nextTrimEnd,
+              offset: nextTrimStart,
             };
           }
           return clip;

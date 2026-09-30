@@ -8,12 +8,12 @@ import { Tooltip } from './Tooltip';
 
 interface TopBarProps {
   onNewProject: () => void;
-  onSaveProject: () => void;
+  onSaveProject: () => Promise<void>;
   onExport: () => void;
 }
 
 export const TopBar: React.FC<TopBarProps> = ({ onNewProject, onSaveProject, onExport }) => {
-  const { project, updateProject, undo, redo, setViewMode, selectedClipId } = useEditorStore();
+  const { project, updateProject, undo, redo, setViewMode, selectedClipId, playheadPosition, splitClip } = useEditorStore();
   const [saveStatus, setSaveStatus] = useState<'saved' | 'saving' | 'unsaved'>('saved');
 
   return (
@@ -100,6 +100,7 @@ export const TopBar: React.FC<TopBarProps> = ({ onNewProject, onSaveProject, onE
         <Tooltip content="Split (S)">
           <button 
             disabled={!selectedClipId}
+            onClick={() => { if (selectedClipId) splitClip(selectedClipId, playheadPosition); }}
             className="p-1.5 text-gray-500 hover:text-white hover:bg-[#2a2a2a] rounded disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
           >
             <Scissors className="w-4 h-4" />
@@ -108,10 +109,10 @@ export const TopBar: React.FC<TopBarProps> = ({ onNewProject, onSaveProject, onE
         
         <Tooltip content="Save Project (Ctrl+S)">
           <button 
-            onClick={() => {
+            onClick={async () => {
               setSaveStatus('saving');
-              onSaveProject();
-              setTimeout(() => setSaveStatus('saved'), 500);
+              await onSaveProject();
+              setSaveStatus('saved');
             }}
             className="p-1.5 text-gray-500 hover:text-white hover:bg-[#2a2a2a] rounded transition-colors"
           >
