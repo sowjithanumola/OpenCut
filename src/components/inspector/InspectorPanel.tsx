@@ -99,6 +99,17 @@ export const InspectorPanel: React.FC = () => {
       </div>
 
       {/* Transform Section */}
+      {selectedClip.textContent !== undefined && selectedClip.textStyle && (
+        <CollapsibleSection title="Text">
+          <div className="space-y-3">
+            <textarea value={selectedClip.textContent} onChange={e => updateClip(selectedClip.id, { textContent: e.target.value })} className="w-full bg-[#141414] border border-[#2a2a2a] rounded px-2 py-1.5 text-white text-xs" rows={3} />
+            <div className="grid grid-cols-2 gap-2"><input value={selectedClip.textStyle.fontFamily} onChange={e => updateClip(selectedClip.id, { textStyle: { ...selectedClip.textStyle!, fontFamily: e.target.value } })} className="bg-[#141414] border border-[#2a2a2a] rounded px-2 py-1.5 text-white text-xs" /><input type="number" min="8" max="400" value={selectedClip.textStyle.fontSize} onChange={e => updateClip(selectedClip.id, { textStyle: { ...selectedClip.textStyle!, fontSize: Number(e.target.value) } })} className="bg-[#141414] border border-[#2a2a2a] rounded px-2 py-1.5 text-white text-xs" /></div>
+            <div className="grid grid-cols-3 gap-2"><input type="color" value={selectedClip.textStyle.color} onChange={e => updateClip(selectedClip.id, { textStyle: { ...selectedClip.textStyle!, color: e.target.value } })} /><button onClick={() => updateClip(selectedClip.id, { textStyle: { ...selectedClip.textStyle!, fontWeight: selectedClip.textStyle!.fontWeight === '700' ? '400' : '700' } })} className="bg-[#2a2a2a] rounded text-xs">Bold</button><button onClick={() => updateClip(selectedClip.id, { textStyle: { ...selectedClip.textStyle!, alignment: selectedClip.textStyle!.alignment === 'center' ? 'left' : selectedClip.textStyle!.alignment === 'left' ? 'right' : 'center' } })} className="bg-[#2a2a2a] rounded text-xs">Align</button></div>
+          </div>
+        </CollapsibleSection>
+      )}
+
+      {/* Transform Section */}
       <CollapsibleSection title="Transform">
         <div className="space-y-3">
           <div className="grid grid-cols-2 gap-2">

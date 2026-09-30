@@ -6,6 +6,17 @@ import { formatTime } from '../../utils';
 import { Tooltip } from '../editor/Tooltip';
 import type { MediaAsset } from '../../types';
 
+function paintText(ctx: CanvasRenderingContext2D, clip: import('../../types').Clip) {
+  if (!clip.textContent || !clip.textStyle) return;
+  const style = clip.textStyle;
+  ctx.save(); ctx.translate(ctx.canvas.width / 2 + clip.transform.x, ctx.canvas.height / 2 + clip.transform.y); ctx.rotate(clip.transform.rotation * Math.PI / 180); ctx.scale(clip.transform.scale, clip.transform.scale); ctx.globalAlpha = clip.transform.opacity;
+  ctx.font = `${style.fontWeight} ${style.fontSize}px ${style.fontFamily}`; ctx.textAlign = style.alignment; ctx.textBaseline = 'middle'; ctx.fillStyle = style.color;
+  const lines = clip.textContent.split('\n'); const lineHeight = style.fontSize * style.lineHeight; const maxWidth = Math.max(...lines.map(line => ctx.measureText(line).width));
+  if (style.backgroundColor !== 'transparent') { ctx.fillStyle = style.backgroundColor; ctx.fillRect(-maxWidth / 2 - 18, -(lines.length * lineHeight) / 2 - 12, maxWidth + 36, lines.length * lineHeight + 24); ctx.fillStyle = style.color; }
+  ctx.shadowColor = style.shadowColor; ctx.shadowBlur = style.shadowBlur; ctx.shadowOffsetX = style.shadowOffsetX; ctx.shadowOffsetY = style.shadowOffsetY;
+  lines.forEach((line, index) => { const y = (index - (lines.length - 1) / 2) * lineHeight; if (style.strokeWidth) { ctx.strokeStyle = style.strokeColor; ctx.lineWidth = style.strokeWidth; ctx.strokeText(line, 0, y); } ctx.fillText(line, 0, y); }); ctx.restore();
+}
+
 export const PreviewPanel: React.FC = () => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -151,6 +162,8 @@ export const PreviewPanel: React.FC = () => {
         ctx.restore();
       }
     }
+    // Text is a first-class timeline clip, not a fake media asset.
+    getCurrentClips().filter(clip => clip.textContent).forEach(clip => paintText(ctx, clip));
   }, [currentVideoAsset, currentAsset, currentClip, playheadPosition, project?.settings.backgroundColor]);
 
   // Toggle play/pause
@@ -215,6 +228,23 @@ export const PreviewPanel: React.FC = () => {
   }, [getDisplayDimensions]);
 
   const timelineDuration = getTimelineDuration();
+
+  // Images and gaps do not emit media timeupdate events, so advance the shared
+  // timeline clock here. Video clips continue to use their decoded media clock.
+  useEffect(() => {
+    if (!isPlaying || currentAsset?.type === 'video') return;
+    let frame = 0;
+    let previous = performance.now();
+    const tick = (now: number) => {
+      const next = playheadPosition + (now - previous) / 1000;
+      previous = now;
+      if (next >= timelineDuration) { setPlayheadPosition(timelineDuration); setIsPlaying(false); return; }
+      setPlayheadPosition(next);
+      frame = requestAnimationFrame(tick);
+    };
+    frame = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(frame);
+  }, [isPlaying, currentAsset?.type, playheadPosition, timelineDuration, setPlayheadPosition, setIsPlaying]);
 
   // Toggle fullscreen
   const toggleFullscreen = useCallback(() => {

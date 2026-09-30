@@ -1,20 +1,26 @@
 import React, { useState } from 'react';
 import { useEditorStore } from '../../store';
 import { 
-  Play, Save, Download, Settings, Undo2, Redo2, FolderOpen, 
-  Scissors, Copy, ClipboardPaste, Trash2, MonitorPlay 
+  Play, Save, Download, Undo2, Redo2, Scissors, Type
 } from 'lucide-react';
+import type { Clip, TextStyle } from '../../types';
 import { Tooltip } from './Tooltip';
 
 interface TopBarProps {
-  onNewProject: () => void;
-  onSaveProject: () => void;
+  onSaveProject: () => Promise<void>;
   onExport: () => void;
 }
 
-export const TopBar: React.FC<TopBarProps> = ({ onNewProject, onSaveProject, onExport }) => {
-  const { project, updateProject, undo, redo, setViewMode, selectedClipId } = useEditorStore();
+export const TopBar: React.FC<TopBarProps> = ({ onSaveProject, onExport }) => {
+  const { project, updateProject, undo, redo, setViewMode, selectedClipId, playheadPosition, splitClip, addClip, setSelectedClip } = useEditorStore();
   const [saveStatus, setSaveStatus] = useState<'saved' | 'saving' | 'unsaved'>('saved');
+  const addText = () => {
+    const track = project?.tracks.find(candidate => candidate.type === 'text' && !candidate.locked);
+    if (!track) return;
+    const style: TextStyle = { fontFamily: 'Arial', fontSize: 64, fontWeight: '700', color: '#ffffff', backgroundColor: 'transparent', alignment: 'center', letterSpacing: 0, lineHeight: 1.2, strokeColor: '#000000', strokeWidth: 0, shadowColor: 'rgba(0,0,0,.65)', shadowBlur: 8, shadowOffsetX: 2, shadowOffsetY: 2 };
+    const clip: Clip = { id: crypto.randomUUID(), assetId: '', trackId: track.id, startTime: playheadPosition, endTime: playheadPosition + 5, trimStart: 0, trimEnd: 5, offset: 0, textContent: 'Edit this text', textStyle: style, transform: { x: 0, y: 0, scale: 1, rotation: 0, opacity: 1, flipH: false, flipV: false }, effects: [] };
+    addClip(clip); setSelectedClip(clip.id);
+  };
 
   return (
     <header className="h-12 bg-[#1a1a1a] border-b border-[#2a2a2a] flex items-center justify-between px-3 shrink-0">
@@ -32,25 +38,6 @@ export const TopBar: React.FC<TopBarProps> = ({ onNewProject, onSaveProject, onE
           </svg>
           <span className="font-semibold text-base tracking-tight">OpenCut</span>
         </button>
-
-        {/* Menu Items */}
-        <nav className="hidden lg:flex items-center gap-0.5">
-          <button onClick={onNewProject} className="px-2.5 py-1.5 text-xs text-gray-400 hover:text-white hover:bg-[#2a2a2a] rounded transition-colors">
-            File
-          </button>
-          <button className="px-2.5 py-1.5 text-xs text-gray-400 hover:text-white hover:bg-[#2a2a2a] rounded transition-colors">
-            Edit
-          </button>
-          <button className="px-2.5 py-1.5 text-xs text-gray-400 hover:text-white hover:bg-[#2a2a2a] rounded transition-colors">
-            View
-          </button>
-          <button className="px-2.5 py-1.5 text-xs text-gray-400 hover:text-white hover:bg-[#2a2a2a] rounded transition-colors">
-            Project
-          </button>
-        </nav>
-
-        {/* Divider */}
-        <div className="hidden lg:block w-px h-4 bg-[#2a2a2a]" />
 
         {/* Undo/Redo */}
         <div className="flex items-center gap-0.5">
@@ -100,18 +87,22 @@ export const TopBar: React.FC<TopBarProps> = ({ onNewProject, onSaveProject, onE
         <Tooltip content="Split (S)">
           <button 
             disabled={!selectedClipId}
+            onClick={() => { if (selectedClipId) splitClip(selectedClipId, playheadPosition); }}
             className="p-1.5 text-gray-500 hover:text-white hover:bg-[#2a2a2a] rounded disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
           >
             <Scissors className="w-4 h-4" />
           </button>
         </Tooltip>
+        <Tooltip content="Add text">
+          <button onClick={addText} disabled={!project?.tracks.some(track => track.type === 'text' && !track.locked)} className="p-1.5 text-gray-500 hover:text-white hover:bg-[#2a2a2a] rounded disabled:opacity-30 transition-colors"><Type className="w-4 h-4" /></button>
+        </Tooltip>
         
         <Tooltip content="Save Project (Ctrl+S)">
           <button 
-            onClick={() => {
+            onClick={async () => {
               setSaveStatus('saving');
-              onSaveProject();
-              setTimeout(() => setSaveStatus('saved'), 500);
+              await onSaveProject();
+              setSaveStatus('saved');
             }}
             className="p-1.5 text-gray-500 hover:text-white hover:bg-[#2a2a2a] rounded transition-colors"
           >
@@ -119,31 +110,7 @@ export const TopBar: React.FC<TopBarProps> = ({ onNewProject, onSaveProject, onE
           </button>
         </Tooltip>
         
-        <Tooltip content="Open Project">
-          <button 
-            className="p-1.5 text-gray-500 hover:text-white hover:bg-[#2a2a2a] rounded transition-colors"
-          >
-            <FolderOpen className="w-4 h-4" />
-          </button>
-        </Tooltip>
-        
-        <Tooltip content="Settings">
-          <button 
-            className="p-1.5 text-gray-500 hover:text-white hover:bg-[#2a2a2a] rounded transition-colors"
-          >
-            <Settings className="w-4 h-4" />
-          </button>
-        </Tooltip>
-        
         <div className="w-px h-5 bg-[#2a2a2a] mx-1" />
-        
-        <Tooltip content="Preview (Space)">
-          <button 
-            className="p-1.5 text-gray-500 hover:text-white hover:bg-[#2a2a2a] rounded transition-colors"
-          >
-            <MonitorPlay className="w-4 h-4" />
-          </button>
-        </Tooltip>
         
         <button 
           onClick={onExport}

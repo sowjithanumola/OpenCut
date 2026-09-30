@@ -6,13 +6,11 @@ import { TimelinePanel } from '../timeline';
 import { InspectorPanel } from '../inspector';
 
 interface EditorLayoutProps {
-  onNewProject: () => void;
-  onSaveProject: () => void;
+  onSaveProject: () => Promise<void>;
   onExport: () => void;
 }
 
 export const EditorLayout: React.FC<EditorLayoutProps> = ({
-  onNewProject,
   onSaveProject,
   onExport,
 }) => {
@@ -20,7 +18,6 @@ export const EditorLayout: React.FC<EditorLayoutProps> = ({
     <div className="h-screen flex flex-col bg-gray-900 overflow-hidden">
       {/* Top Bar */}
       <TopBar 
-        onNewProject={onNewProject}
         onSaveProject={onSaveProject}
         onExport={onExport}
       />

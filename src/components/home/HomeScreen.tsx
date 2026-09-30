@@ -1,6 +1,6 @@
-import React, { useCallback } from 'react';
-import { useEditorStore } from '../../store';
+import React, { useEffect, useState } from 'react';
 import { Project } from '../../types';
+import { listProjects, loadProject } from '../../services/projectStorage';
 
 interface HomeScreenProps {
   onNewProject: () => void;
@@ -8,6 +8,13 @@ interface HomeScreenProps {
 }
 
 export const HomeScreen: React.FC<HomeScreenProps> = ({ onNewProject, onOpenProject }) => {
+  const [projects, setProjects] = useState<Array<{ id: string; name: string; updatedAt: number }>>([]);
+  const [error, setError] = useState<string | null>(null);
+  useEffect(() => { listProjects().then(setProjects).catch(() => setError('Could not read local projects.')); }, []);
+  const open = async (id: string) => {
+    try { const project = await loadProject(id); if (!project) throw new Error('Project not found.'); onOpenProject(project); }
+    catch (err) { setError(err instanceof Error ? err.message : 'Could not open project.'); }
+  };
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 flex flex-col items-center justify-center p-8">
       <div className="max-w-4xl w-full text-center">
@@ -31,7 +38,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ onNewProject, onOpenProj
             New Project
           </button>
           <button
-            onClick={() => {/* Handle open project */}}
+            onClick={() => projects[0] ? open(projects[0].id) : setError('There are no saved projects to open.')}
             className="px-8 py-4 bg-gray-700 hover:bg-gray-600 text-white rounded-lg font-semibold text-lg transition-colors border border-gray-600"
           >
             Open Project
@@ -57,8 +64,10 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ onNewProject, onOpenProj
         {/* Recent Projects Section */}
         <div className="mt-12 text-left">
           <h2 className="text-white font-semibold mb-4">Recent Projects</h2>
-          <div className="bg-gray-800/30 rounded-xl p-6 border border-gray-700 min-h-[120px] flex items-center justify-center">
-            <p className="text-gray-500">No recent projects</p>
+          <div className="bg-gray-800/30 rounded-xl p-3 border border-gray-700 min-h-[120px]">
+            {error && <p className="text-red-400 text-sm p-3">{error}</p>}
+            {!error && projects.length === 0 && <p className="text-gray-500 text-center p-6">No recent projects</p>}
+            {projects.map(project => <button key={project.id} onClick={() => open(project.id)} className="w-full text-left p-3 rounded hover:bg-gray-700 text-white flex justify-between"><span>{project.name}</span><span className="text-xs text-gray-500">{new Date(project.updatedAt).toLocaleDateString()}</span></button>)}
           </div>
         </div>
       </div>
