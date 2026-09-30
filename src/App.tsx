@@ -96,7 +96,6 @@ function App() {
         />
       ) : (
         <EditorLayout
-          onNewProject={handleNewProject}
           onSaveProject={handleSaveProject}
           onExport={handleExport}
         />

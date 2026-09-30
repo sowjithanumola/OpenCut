@@ -8,9 +8,6 @@ const waitFor = (target: EventTarget, event: string) => new Promise<void>((resol
 });
 
 function drawableClips(project: Project, time: number) {
-  return project.tracks.flatMap((track, trackIndex) => track.hidden || track.type !== 'video' ? [] :
-    track.clips.filter(clip => clip.startTime <= time && time < clip.endTime).map(clip => ({ clip, trackIndex })));
-}
 
 function draw(ctx: CanvasRenderingContext2D, element: CanvasImageSource, asset: MediaAsset, clip: Clip, width: number, height: number) {
   const sourceW = asset.width || width;
@@ -53,6 +50,7 @@ export async function renderTimeline(project: Project, settings: RenderSettings,
       if (!ctx) throw new Error('Could not create export canvas.');
       ctx.fillStyle = project.settings.backgroundColor; ctx.fillRect(0, 0, canvas.width, canvas.height);
       for (const { clip } of drawableClips(project, time)) {
+
         const asset = assets.get(clip.assetId); if (!asset) continue;
         if (asset.type === 'image') { const image = images.get(asset.id); if (image) draw(ctx, image, asset, clip, canvas.width, canvas.height); }
         if (asset.type === 'video') { const video = videos.get(asset.id); if (video) { const sourceTime = clip.trimStart + time - clip.startTime; if (Math.abs(video.currentTime - sourceTime) > .002) { video.currentTime = sourceTime; await waitFor(video, 'seeked'); } draw(ctx, video, asset, clip, canvas.width, canvas.height); } }
