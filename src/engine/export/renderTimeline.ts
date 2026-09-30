@@ -8,31 +8,6 @@ const waitFor = (target: EventTarget, event: string) => new Promise<void>((resol
 });
 
 function drawableClips(project: Project, time: number) {
-  return project.tracks.flatMap((track, trackIndex) => track.hidden || (track.type !== 'video' && track.type !== 'text') ? [] :
-    track.clips.filter(clip => clip.startTime <= time && time < clip.endTime).map(clip => ({ clip, trackIndex })));
-}
-
-function drawText(ctx: CanvasRenderingContext2D, clip: Clip, width: number, height: number) {
-  if (!clip.textContent || !clip.textStyle) return;
-  const style = clip.textStyle;
-  ctx.save();
-  ctx.translate(width / 2 + clip.transform.x, height / 2 + clip.transform.y);
-  ctx.rotate(clip.transform.rotation * Math.PI / 180);
-  ctx.scale(clip.transform.scale, clip.transform.scale);
-  ctx.globalAlpha = clip.transform.opacity;
-  ctx.font = `${style.fontWeight} ${style.fontSize}px ${style.fontFamily}`;
-  ctx.textAlign = style.alignment;
-  ctx.textBaseline = 'middle';
-  ctx.letterSpacing = `${style.letterSpacing}px`;
-  const lines = clip.textContent.split('\n');
-  const lineHeight = style.fontSize * style.lineHeight;
-  const maxWidth = Math.max(...lines.map(line => ctx.measureText(line).width));
-  if (style.backgroundColor !== 'transparent') { ctx.fillStyle = style.backgroundColor; ctx.fillRect(-maxWidth / 2 - 18, -(lines.length * lineHeight) / 2 - 12, maxWidth + 36, lines.length * lineHeight + 24); }
-  ctx.shadowColor = style.shadowColor; ctx.shadowBlur = style.shadowBlur; ctx.shadowOffsetX = style.shadowOffsetX; ctx.shadowOffsetY = style.shadowOffsetY;
-  ctx.fillStyle = style.color;
-  lines.forEach((line, index) => { const y = (index - (lines.length - 1) / 2) * lineHeight; if (style.strokeWidth) { ctx.strokeStyle = style.strokeColor; ctx.lineWidth = style.strokeWidth; ctx.strokeText(line, 0, y); } ctx.fillText(line, 0, y); });
-  ctx.restore();
-}
 
 function draw(ctx: CanvasRenderingContext2D, element: CanvasImageSource, asset: MediaAsset, clip: Clip, width: number, height: number) {
   const sourceW = asset.width || width;
@@ -75,7 +50,7 @@ export async function renderTimeline(project: Project, settings: RenderSettings,
       if (!ctx) throw new Error('Could not create export canvas.');
       ctx.fillStyle = project.settings.backgroundColor; ctx.fillRect(0, 0, canvas.width, canvas.height);
       for (const { clip } of drawableClips(project, time)) {
-        if (clip.textContent) { drawText(ctx, clip, canvas.width, canvas.height); continue; }
+
         const asset = assets.get(clip.assetId); if (!asset) continue;
         if (asset.type === 'image') { const image = images.get(asset.id); if (image) draw(ctx, image, asset, clip, canvas.width, canvas.height); }
         if (asset.type === 'video') { const video = videos.get(asset.id); if (video) { const sourceTime = clip.trimStart + time - clip.startTime; if (Math.abs(video.currentTime - sourceTime) > .002) { video.currentTime = sourceTime; await waitFor(video, 'seeked'); } draw(ctx, video, asset, clip, canvas.width, canvas.height); } }

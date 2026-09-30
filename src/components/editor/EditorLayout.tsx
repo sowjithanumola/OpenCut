@@ -6,6 +6,8 @@ import { TimelinePanel } from '../timeline';
 import { InspectorPanel } from '../inspector';
 
 interface EditorLayoutProps {
+
+  
   onSaveProject: () => Promise<void>;
   onExport: () => void;
 }

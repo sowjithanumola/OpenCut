@@ -7,12 +7,13 @@ import type { Clip, TextStyle } from '../../types';
 import { Tooltip } from './Tooltip';
 
 interface TopBarProps {
+
+ 
   onSaveProject: () => Promise<void>;
   onExport: () => void;
 }
 
-export const TopBar: React.FC<TopBarProps> = ({ onSaveProject, onExport }) => {
-  const { project, updateProject, undo, redo, setViewMode, selectedClipId, playheadPosition, splitClip, addClip, setSelectedClip } = useEditorStore();
+
   const [saveStatus, setSaveStatus] = useState<'saved' | 'saving' | 'unsaved'>('saved');
   const addText = () => {
     const track = project?.tracks.find(candidate => candidate.type === 'text' && !candidate.locked);
