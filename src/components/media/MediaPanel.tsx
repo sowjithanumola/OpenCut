@@ -9,7 +9,7 @@ import { Tooltip } from '../editor/Tooltip';
 export const MediaPanel: React.FC = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const dropZoneRef = useRef<HTMLDivElement>(null);
-  const { project, addMediaAsset, removeMediaAsset, addClip, setSelectedClip } = useEditorStore();
+  const { project, addMediaAsset, removeMediaAsset, addClip, addTrack, setSelectedClip, setError } = useEditorStore();
   const [isDragging, setIsDragging] = useState(false);
   const [activeTab, setActiveTab] = useState<'all' | 'video' | 'audio' | 'image'>('all');
 
@@ -17,10 +17,8 @@ export const MediaPanel: React.FC = () => {
     if (!files) return;
 
     for (const file of Array.from(files)) {
-      const asset = await MediaProcessor.processFile(file);
-      if (asset) {
-        addMediaAsset(asset);
-      }
+      try { addMediaAsset(await MediaProcessor.processFile(file)); }
+      catch (error) { setError(error instanceof Error ? error.message : `Could not import “${file.name}”.`); }
     }
   }, [addMediaAsset]);
 
@@ -72,6 +70,7 @@ export const MediaPanel: React.FC = () => {
       // Create a new track if needed
       const trackId = `${asset.type}-${Date.now()}`;
       targetTrackId = trackId;
+      addTrack({ id: trackId, name: `${asset.type === 'audio' ? 'Audio' : 'Video'} ${project.tracks.length + 1}`, type: asset.type === 'audio' ? 'audio' : 'video', locked: false, hidden: false, muted: false, solo: false, clips: [] });
     }
     
     // Create clip at the end of existing content or at playhead
@@ -87,7 +86,7 @@ export const MediaPanel: React.FC = () => {
       addClip(clip);
       setSelectedClip(clip.id);
     }
-  }, [project, addClip, setSelectedClip]);
+  }, [project, addClip, addTrack, setSelectedClip]);
 
   const getMediaTypeIcon = (type: MediaAsset['type']) => {
     switch (type) {

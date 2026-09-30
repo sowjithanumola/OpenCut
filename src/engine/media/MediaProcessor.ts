@@ -23,7 +23,7 @@ export class MediaProcessor {
     'image/gif',
   ];
 
-  static async processFile(file: File): Promise<MediaAsset | null> {
+  static async processFile(file: File): Promise<MediaAsset> {
     try {
       const url = URL.createObjectURL(file);
       let mediaInfo: Partial<MediaAsset> = {};
@@ -36,7 +36,7 @@ export class MediaProcessor {
         mediaInfo = await this.getImageInfo(url, file);
       } else {
         URL.revokeObjectURL(url);
-        return null;
+        throw new Error(`“${file.name}” is not a supported video, audio, or image file.`);
       }
 
       return {
@@ -48,8 +48,7 @@ export class MediaProcessor {
         ...mediaInfo,
       } as MediaAsset;
     } catch (error) {
-      console.error('Error processing media file:', error);
-      return null;
+      throw error instanceof Error ? error : new Error(`Could not import “${file.name}”.`);
     }
   }
 
@@ -127,6 +126,7 @@ export class MediaProcessor {
       img.onload = () => {
         resolve({
           type: 'image' as const,
+          duration: 5,
           width: img.width,
           height: img.height,
           thumbnailUrl: url,

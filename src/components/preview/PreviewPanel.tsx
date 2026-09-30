@@ -216,6 +216,23 @@ export const PreviewPanel: React.FC = () => {
 
   const timelineDuration = getTimelineDuration();
 
+  // Images and gaps do not emit media timeupdate events, so advance the shared
+  // timeline clock here. Video clips continue to use their decoded media clock.
+  useEffect(() => {
+    if (!isPlaying || currentAsset?.type === 'video') return;
+    let frame = 0;
+    let previous = performance.now();
+    const tick = (now: number) => {
+      const next = playheadPosition + (now - previous) / 1000;
+      previous = now;
+      if (next >= timelineDuration) { setPlayheadPosition(timelineDuration); setIsPlaying(false); return; }
+      setPlayheadPosition(next);
+      frame = requestAnimationFrame(tick);
+    };
+    frame = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(frame);
+  }, [isPlaying, currentAsset?.type, playheadPosition, timelineDuration, setPlayheadPosition, setIsPlaying]);
+
   // Toggle fullscreen
   const toggleFullscreen = useCallback(() => {
     if (!containerRef.current) return;

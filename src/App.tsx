@@ -3,6 +3,8 @@ import { useEditorStore } from './store';
 import { HomeScreen } from './components/home';
 import { EditorLayout } from './components/editor';
 import type { Project } from './types';
+import { loadProject, saveProject } from './services/projectStorage';
+import { ExportPanel } from './components/export/ExportPanel';
 
 function App() {
   const { 
@@ -14,6 +16,7 @@ function App() {
     addClip,
     setSelectedClip
   } = useEditorStore();
+  const [isExportOpen, setExportOpen] = React.useState(false);
 
   // Create a new project
   const handleNewProject = () => {
@@ -44,48 +47,33 @@ function App() {
     setViewMode('editor');
   };
 
-  // Save project to localStorage
-  const handleSaveProject = () => {
+  const handleSaveProject = async () => {
     if (!project) return;
-    
-    try {
-      // Create a serializable version without File objects
-      const serializableProject = {
-        ...project,
-        mediaAssets: project.mediaAssets.map(asset => ({
-          ...asset,
-          file: undefined, // Don't save File references
-        })),
-      };
-      
-      localStorage.setItem(`opencut-project-${project.id}`, JSON.stringify(serializableProject));
-      alert('Project saved successfully!');
-    } catch (error) {
+    try { await saveProject(project); }
+    catch (error) {
       console.error('Failed to save project:', error);
-      alert('Failed to save project. Please try again.');
+      useEditorStore.getState().setError(error instanceof Error ? error.message : 'Failed to save project.');
+      throw error;
     }
   };
 
-  // Export handler (placeholder for now)
-  const handleExport = () => {
-    if (!project) return;
-    alert('Export functionality coming soon.\n\nThis will render your timeline to a video file using browser APIs.');
-  };
+  const handleExport = () => setExportOpen(true);
 
   // Load project from URL hash or check for recent project
   useEffect(() => {
     const hash = window.location.hash.slice(1);
     if (hash) {
       try {
-        const savedProject = localStorage.getItem(`opencut-project-${hash}`);
-        if (savedProject) {
-          const parsed = JSON.parse(savedProject);
-          setProject(parsed);
+        loadProject(hash).then((savedProject) => {
+          if (savedProject) {
+          setProject(savedProject);
           setViewMode('editor');
-        }
-      } catch (error) {
+          }
+        }).catch((error) => {
         console.error('Failed to load project:', error);
-      }
+        useEditorStore.getState().setError(error instanceof Error ? error.message : 'Failed to load project.');
+        });
+      } catch (error) { console.error('Invalid project link:', error); }
     }
   }, [setProject, setViewMode]);
 
@@ -113,6 +101,7 @@ function App() {
           onExport={handleExport}
         />
       )}
+      {isExportOpen && <ExportPanel onClose={() => setExportOpen(false)} />}
     </div>
   );
 }

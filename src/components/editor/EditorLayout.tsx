@@ -7,7 +7,7 @@ import { InspectorPanel } from '../inspector';
 
 interface EditorLayoutProps {
   onNewProject: () => void;
-  onSaveProject: () => void;
+  onSaveProject: () => Promise<void>;
   onExport: () => void;
 }
 

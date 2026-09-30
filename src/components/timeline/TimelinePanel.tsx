@@ -24,7 +24,9 @@ export const TimelinePanel: React.FC = () => {
     removeClip,
     splitClip,
     moveClip,
-    updateClip
+    updateClip,
+    updateTrack,
+    setSelectedTrack
   } = useEditorStore();
 
   const PIXELS_PER_SECOND = 50 * zoom;
@@ -192,6 +194,19 @@ export const TimelinePanel: React.FC = () => {
   };
 
   const tracks = project?.tracks || [];
+  const beginClipPointer = (event: React.PointerEvent<HTMLDivElement>, clip: Clip, mode: 'move' | 'trim-start' | 'trim-end') => {
+    event.stopPropagation();
+    const startX = event.clientX;
+    const original = { startTime: clip.startTime, endTime: clip.endTime, trimStart: clip.trimStart, trimEnd: clip.trimEnd };
+    const onMove = (moveEvent: PointerEvent) => {
+      const delta = (moveEvent.clientX - startX) / PIXELS_PER_SECOND;
+      if (mode === 'move') moveClip(clip.id, Math.max(0, original.startTime + delta));
+      if (mode === 'trim-start') updateClip(clip.id, { startTime: Math.min(original.endTime - .05, Math.max(0, original.startTime + delta)), trimStart: Math.min(original.trimEnd - .05, Math.max(0, original.trimStart + delta)), offset: Math.max(0, original.trimStart + delta) });
+      if (mode === 'trim-end') updateClip(clip.id, { endTime: Math.max(original.startTime + .05, original.endTime + delta), trimEnd: Math.max(original.trimStart + .05, original.trimEnd + delta) });
+    };
+    const onUp = () => { window.removeEventListener('pointermove', onMove); window.removeEventListener('pointerup', onUp); };
+    window.addEventListener('pointermove', onMove); window.addEventListener('pointerup', onUp);
+  };
 
   return (
     <div className="h-full bg-gray-900 flex flex-col border-t border-gray-700">
@@ -263,6 +278,7 @@ export const TimelinePanel: React.FC = () => {
             {tracks.map((track) => (
               <div
                 key={track.id}
+                onClick={() => setSelectedTrack(track.id)}
                 className="h-16 border-b border-gray-700 p-2 flex flex-col justify-center"
               >
                 <div className="flex items-center justify-between mb-1">
@@ -270,14 +286,14 @@ export const TimelinePanel: React.FC = () => {
                     {track.name}
                   </span>
                   <div className="flex items-center gap-1">
-                    <button className="p-0.5 text-gray-500 hover:text-white">
+                    <button onClick={(event) => { event.stopPropagation(); updateTrack(track.id, { locked: !track.locked }); }} className="p-0.5 text-gray-500 hover:text-white">
                       {track.locked ? (
                         <Lock className="w-3 h-3" />
                       ) : (
                         <Lock className="w-3 h-3 opacity-50" />
                       )}
                     </button>
-                    <button className="p-0.5 text-gray-500 hover:text-white">
+                    <button onClick={(event) => { event.stopPropagation(); updateTrack(track.id, { hidden: !track.hidden }); }} className="p-0.5 text-gray-500 hover:text-white">
                       {track.hidden ? (
                         <Eye className="w-3 h-3 opacity-50" />
                       ) : (
@@ -285,7 +301,7 @@ export const TimelinePanel: React.FC = () => {
                       )}
                     </button>
                     {track.type === 'audio' && (
-                      <button className="p-0.5 text-gray-500 hover:text-white">
+                      <button onClick={(event) => { event.stopPropagation(); updateTrack(track.id, { muted: !track.muted }); }} className="p-0.5 text-gray-500 hover:text-white">
                         {track.muted ? (
                           <VolumeX className="w-3 h-3" />
                         ) : (
@@ -375,6 +391,7 @@ export const TimelinePanel: React.FC = () => {
                           e.stopPropagation();
                           setSelectedClip(clip.id);
                         }}
+                        onPointerDown={(event) => beginClipPointer(event, clip, 'move')}
                       >
                         <div className="p-1 h-full overflow-hidden">
                           {asset?.thumbnailUrl && track.type === 'video' && (
@@ -390,8 +407,8 @@ export const TimelinePanel: React.FC = () => {
                         </div>
                         
                         {/* Trim handles */}
-                        <div className="absolute left-0 top-0 bottom-0 w-2 cursor-ew-resize hover:bg-white/20 rounded-l" />
-                        <div className="absolute right-0 top-0 bottom-0 w-2 cursor-ew-resize hover:bg-white/20 rounded-r" />
+                        <div onPointerDown={(event) => beginClipPointer(event, clip, 'trim-start')} className="absolute left-0 top-0 bottom-0 w-2 cursor-ew-resize hover:bg-white/20 rounded-l" />
+                        <div onPointerDown={(event) => beginClipPointer(event, clip, 'trim-end')} className="absolute right-0 top-0 bottom-0 w-2 cursor-ew-resize hover:bg-white/20 rounded-r" />
                       </div>
                     );
                   })}
